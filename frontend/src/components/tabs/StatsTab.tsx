@@ -576,8 +576,11 @@ export function StatsTab() {
     // First, build a map of profile ID -> account ID
     const profileToAccountMap = new Map<number, number>();
     for (const account of m3uAccounts) {
-      for (const profile of account.profiles || []) {
-        profileToAccountMap.set(profile.id, account.id);
+      const profiles = Array.isArray(account.profiles) ? account.profiles : [];
+      for (const profile of profiles) {
+        if (profile && typeof profile.id === 'number') {
+          profileToAccountMap.set(profile.id, account.id);
+        }
       }
     }
 
@@ -611,15 +614,17 @@ export function StatsTab() {
     logger.debug(`Stats Tab M3U Debug: Processing ${m3uAccounts.length} M3U accounts`);
     const result = m3uAccounts
       .filter(account => {
-        const include = account.is_active && account.name.toLowerCase() !== 'custom';
+        const name = typeof account.name === 'string' ? account.name : '';
+        const include = account.is_active && name.toLowerCase() !== 'custom';
         if (!include) {
-          logger.debug(`Stats Tab M3U Debug: Excluding M3U account "${account.name}" (id=${account.id}) - is_active: ${account.is_active}, name check: ${account.name.toLowerCase() !== 'custom'}`);
+          logger.debug(`Stats Tab M3U Debug: Excluding M3U account "${name || '(unknown)'}" (id=${account.id}) - is_active: ${account.is_active}, name check: ${name.toLowerCase() !== 'custom'}`);
         }
         return include;
       })
       .map(account => {
         // Sum max_streams from active profiles
-        const activeProfiles = (account.profiles || []).filter(p => p.is_active);
+        const profiles = Array.isArray(account.profiles) ? account.profiles : [];
+        const activeProfiles = profiles.filter(p => p?.is_active);
         const profileStreams = activeProfiles.reduce((sum, p) => sum + (p.max_streams || 0), 0);
 
         // If profiles exist, they include ALL accounts (base + linked), so don't add account.max_streams
@@ -627,16 +632,17 @@ export function StatsTab() {
         const totalMax = profileStreams > 0 ? profileStreams : account.max_streams;
         const currentConnections = activeCount.get(account.id) || 0;
 
-        logger.debug(`Stats Tab M3U Debug: M3U "${account.name}" (id=${account.id}): current=${currentConnections}, max=${totalMax}, account.max_streams=${account.max_streams}, profiles=${activeProfiles.length}, profileStreams=${profileStreams}`);
+        const name = typeof account.name === 'string' ? account.name : 'M3U';
+        logger.debug(`Stats Tab M3U Debug: M3U "${name}" (id=${account.id}): current=${currentConnections}, max=${totalMax}, account.max_streams=${account.max_streams}, profiles=${activeProfiles.length}, profileStreams=${profileStreams}`);
 
         return {
           id: account.id,
-          name: account.name,
+          name,
           current: currentConnections,
           max: totalMax,
         };
       })
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
     logger.debug(`Stats Tab M3U Debug: Final M3U connection stats: ${JSON.stringify(result)}`);
     return result;
