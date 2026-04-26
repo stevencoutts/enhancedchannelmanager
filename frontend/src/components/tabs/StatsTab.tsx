@@ -72,8 +72,9 @@ function isStreamingEvent(eventType: string): boolean {
 }
 
 // Get event type display info
-function getEventTypeInfo(eventType: string): { icon: string; className: string; label: string } {
-  const type = eventType.toLowerCase();
+function getEventTypeInfo(eventType: string | null | undefined): { icon: string; className: string; label: string } {
+  const raw = typeof eventType === 'string' ? eventType : '';
+  const type = raw.toLowerCase();
   if (type.includes('start') || type.includes('started')) {
     return { icon: 'play_circle', className: 'start', label: 'Start' };
   }
@@ -92,7 +93,7 @@ function getEventTypeInfo(eventType: string): { icon: string; className: string;
   if (type.includes('error')) {
     return { icon: 'error', className: 'error', label: 'Error' };
   }
-  return { icon: 'info', className: '', label: eventType };
+  return { icon: 'info', className: '', label: raw };
 }
 
 // Parse user agent to get short description
