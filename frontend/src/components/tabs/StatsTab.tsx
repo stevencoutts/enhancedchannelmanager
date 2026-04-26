@@ -1104,7 +1104,7 @@ export function StatsTab() {
                 return (
                   <div key={event.id} className="event-item">
                     <span className="event-time">
-                      {formatEventTime(event.timestamp || event.created_at)}
+                      {formatEventTime((event.timestamp || event.created_at || '') as string)}
                     </span>
                     <span className={`event-type ${typeInfo.className}`}>
                       <span className="material-icons">{typeInfo.icon}</span>

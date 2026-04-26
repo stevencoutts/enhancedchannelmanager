@@ -82,8 +82,10 @@ export function formatRelativeTime(isoString: string, capitalize = false): strin
 }
 
 /** Format ISO timestamp to HH:MM:SS time string. */
-export function formatEventTime(isoString: string): string {
+export function formatEventTime(isoString: string | null | undefined): string {
+  if (!isoString) return '--:--:--';
   const date = new Date(isoString);
+  if (Number.isNaN(date.getTime())) return '--:--:--';
   return date.toLocaleTimeString('en-US', {
     hour: '2-digit',
     minute: '2-digit',
