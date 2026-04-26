@@ -97,8 +97,8 @@ function getEventTypeInfo(eventType: string | null | undefined): { icon: string;
 }
 
 // Parse user agent to get short description
-function parseUserAgent(ua: string | undefined): string {
-  if (!ua) return 'Unknown';
+function parseUserAgent(ua: string | undefined | null): string {
+  if (typeof ua !== 'string' || !ua) return 'Unknown';
 
   // Check for common patterns
   if (ua.includes('VLC')) return 'VLC';
@@ -563,91 +563,80 @@ export function StatsTab() {
   };
 
   // Filter events - first exclude non-streaming events, then apply user filter
-  const streamingEvents = events.filter(e => isStreamingEvent(e.event_type || ''));
-  const filteredEvents = eventFilter
-    ? streamingEvents.filter(e => e.event_type?.toLowerCase().includes(eventFilter.toLowerCase()))
-    : streamingEvents;
+  const streamingEvents = useMemo(() => {
+    try {
+      return events.filter(e => isStreamingEvent(e.event_type || ''));
+    } catch (err) {
+      logger.error('Stats Tab: failed to compute streamingEvents', err);
+      return [];
+    }
+  }, [events]);
+
+  const filteredEvents = useMemo(() => {
+    try {
+      if (!eventFilter) return streamingEvents;
+      const needle = eventFilter.toLowerCase();
+      return streamingEvents.filter(e => (e.event_type || '').toLowerCase().includes(needle));
+    } catch (err) {
+      logger.error('Stats Tab: failed to compute filteredEvents', err);
+      return [];
+    }
+  }, [streamingEvents, eventFilter]);
 
   // Calculate totals
   const totalClients = channelStats?.channels?.reduce((sum, ch) => sum + (ch.client_count || 0), 0) || 0;
   const activeChannels = channelStats?.count || 0;
 
   // Calculate connections per M3U (current/max for all accounts)
-  const m3uConnectionStats = (() => {
-    // First, build a map of profile ID -> account ID
-    const profileToAccountMap = new Map<number, number>();
-    for (const account of m3uAccounts) {
-      const profiles = Array.isArray(account.profiles) ? account.profiles : [];
-      for (const profile of profiles) {
-        if (profile && typeof profile.id === 'number') {
-          profileToAccountMap.set(profile.id, account.id);
-        }
-      }
-    }
-
-    // Count active connections per M3U account ID (not profile ID!)
-    const activeCount = new Map<number, number>();
-    if (channelStats?.channels) {
-      logger.debug(`Stats Tab M3U Debug: Processing ${channelStats.channels.length} active channels for M3U connection counts`);
-      for (const ch of channelStats.channels) {
-        logger.debug(`Stats Tab M3U Debug: Channel ${ch.channel_id} (${ch.channel_name}) - m3u_profile_id: ${ch.m3u_profile_id}, stream_name: ${ch.stream_name}`);
-        if (ch.m3u_profile_id) {
-          // Map profile ID to account ID
-          const accountId = profileToAccountMap.get(ch.m3u_profile_id);
-          if (accountId) {
-            activeCount.set(accountId, (activeCount.get(accountId) || 0) + 1);
-            logger.debug(`Stats Tab M3U Debug: Profile ${ch.m3u_profile_id} -> Account ${accountId}, incremented count`);
-          } else {
-            logger.debug(`Stats Tab M3U Debug: Profile ${ch.m3u_profile_id} not found in any M3U account`);
-          }
-        } else {
-          logger.debug(`Stats Tab M3U Debug: Channel ${ch.channel_id} has NO m3u_profile_id - will not count toward any M3U`);
-        }
-      }
-      logger.debug(`Stats Tab M3U Debug: Active connection counts by M3U Account ID: ${JSON.stringify(Object.fromEntries(activeCount))}`);
-    } else {
-      logger.debug('Stats Tab M3U Debug: No active channels to process');
-    }
-
-    // Build stats for all M3U accounts (exclude "Custom" M3U)
-    // If profiles exist, use sum of active profile max_streams (profiles include the base account)
-    // Otherwise use account.max_streams directly
-    logger.debug(`Stats Tab M3U Debug: Processing ${m3uAccounts.length} M3U accounts`);
-    const result = m3uAccounts
-      .filter(account => {
-        const name = typeof account.name === 'string' ? account.name : '';
-        const include = account.is_active && name.toLowerCase() !== 'custom';
-        if (!include) {
-          logger.debug(`Stats Tab M3U Debug: Excluding M3U account "${name || '(unknown)'}" (id=${account.id}) - is_active: ${account.is_active}, name check: ${name.toLowerCase() !== 'custom'}`);
-        }
-        return include;
-      })
-      .map(account => {
-        // Sum max_streams from active profiles
+  const m3uConnectionStats = useMemo(() => {
+    try {
+      // First, build a map of profile ID -> account ID
+      const profileToAccountMap = new Map<number, number>();
+      for (const account of m3uAccounts) {
         const profiles = Array.isArray(account.profiles) ? account.profiles : [];
-        const activeProfiles = profiles.filter(p => p?.is_active);
-        const profileStreams = activeProfiles.reduce((sum, p) => sum + (p.max_streams || 0), 0);
+        for (const profile of profiles) {
+          if (profile && typeof profile.id === 'number') {
+            profileToAccountMap.set(profile.id, account.id);
+          }
+        }
+      }
 
-        // If profiles exist, they include ALL accounts (base + linked), so don't add account.max_streams
-        // Otherwise, use account.max_streams as fallback
-        const totalMax = profileStreams > 0 ? profileStreams : account.max_streams;
-        const currentConnections = activeCount.get(account.id) || 0;
+      // Count active connections per M3U account ID (not profile ID!)
+      const activeCount = new Map<number, number>();
+      if (channelStats?.channels) {
+        for (const ch of channelStats.channels) {
+          if (ch.m3u_profile_id) {
+            const accountId = profileToAccountMap.get(ch.m3u_profile_id);
+            if (accountId) {
+              activeCount.set(accountId, (activeCount.get(accountId) || 0) + 1);
+            }
+          }
+        }
+      }
 
-        const name = typeof account.name === 'string' ? account.name : 'M3U';
-        logger.debug(`Stats Tab M3U Debug: M3U "${name}" (id=${account.id}): current=${currentConnections}, max=${totalMax}, account.max_streams=${account.max_streams}, profiles=${activeProfiles.length}, profileStreams=${profileStreams}`);
+      // Build stats for all M3U accounts (exclude "Custom" M3U)
+      const result = m3uAccounts
+        .filter(account => {
+          const name = typeof account.name === 'string' ? account.name : '';
+          return account.is_active && name.toLowerCase() !== 'custom';
+        })
+        .map(account => {
+          const profiles = Array.isArray(account.profiles) ? account.profiles : [];
+          const activeProfiles = profiles.filter(p => p?.is_active);
+          const profileStreams = activeProfiles.reduce((sum, p) => sum + (p.max_streams || 0), 0);
+          const totalMax = profileStreams > 0 ? profileStreams : account.max_streams;
+          const currentConnections = activeCount.get(account.id) || 0;
+          const name = typeof account.name === 'string' ? account.name : 'M3U';
+          return { id: account.id, name, current: currentConnections, max: totalMax };
+        })
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
-        return {
-          id: account.id,
-          name,
-          current: currentConnections,
-          max: totalMax,
-        };
-      })
-      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-
-    logger.debug(`Stats Tab M3U Debug: Final M3U connection stats: ${JSON.stringify(result)}`);
-    return result;
-  })();
+      return result;
+    } catch (err) {
+      logger.error('Stats Tab: failed to compute m3uConnectionStats', err);
+      return [];
+    }
+  }, [m3uAccounts, channelStats?.channels]);
 
   // Memoize bandwidth chart data preparation to avoid recalculating on every render
   // NOTE: Must be called before any conditional returns to follow Rules of Hooks
