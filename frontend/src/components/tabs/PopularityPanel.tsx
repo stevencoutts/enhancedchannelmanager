@@ -11,6 +11,10 @@ import { useNotifications } from '../../contexts/NotificationContext';
 import './PopularityPanel.css';
 import { formatBytes, formatWatchTime } from '../../utils/formatting';
 
+function finiteNumber(value: unknown, fallback = 0): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
 // Get trend icon
 function getTrendIcon(trend: string): string {
   switch (trend) {
@@ -150,17 +154,17 @@ export function PopularityPanel({ refreshTrigger }: PopularityPanelProps) {
                     <div className="channel-info">
                       <span className="channel-name">{channel.channel_name}</span>
                       <span className={`trend ${getTrendClass(channel.trend)}`}>
-                        {getTrendIcon(channel.trend)} {Math.abs(channel.trend_percent).toFixed(1)}%
+                        {getTrendIcon(channel.trend)} {Math.abs(finiteNumber(channel.trend_percent)).toFixed(1)}%
                       </span>
                     </div>
                     <div className="score-bar-container">
                       <div className="score-bar-track">
                         <div
                           className="score-bar"
-                          style={{ width: `${channel.score}%` }}
+                          style={{ width: `${finiteNumber(channel.score)}%` }}
                         />
                       </div>
-                      <span className="score-value">{channel.score.toFixed(1)}</span>
+                      <span className="score-value">{finiteNumber(channel.score).toFixed(1)}</span>
                     </div>
                   </div>
                   {expandedChannel === channel.channel_id && (
@@ -221,7 +225,7 @@ export function PopularityPanel({ refreshTrigger }: PopularityPanelProps) {
                     <div key={channel.channel_id} className="trending-item">
                       <span className="trending-rank">#{channel.rank}</span>
                       <span className="trending-name">{channel.channel_name}</span>
-                      <span className="trending-change up">+{channel.trend_percent.toFixed(1)}%</span>
+                      <span className="trending-change up">+{finiteNumber(channel.trend_percent).toFixed(1)}%</span>
                     </div>
                   ))}
                 </div>
@@ -240,7 +244,7 @@ export function PopularityPanel({ refreshTrigger }: PopularityPanelProps) {
                     <div key={channel.channel_id} className="trending-item">
                       <span className="trending-rank">#{channel.rank}</span>
                       <span className="trending-name">{channel.channel_name}</span>
-                      <span className="trending-change down">{channel.trend_percent.toFixed(1)}%</span>
+                      <span className="trending-change down">{finiteNumber(channel.trend_percent).toFixed(1)}%</span>
                     </div>
                   ))}
                 </div>

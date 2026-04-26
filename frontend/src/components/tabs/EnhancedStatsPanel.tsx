@@ -63,6 +63,9 @@ export function EnhancedStatsPanel({ refreshTrigger }: EnhancedStatsPanelProps) 
   const [activeView, setActiveView] = useState<'viewers' | 'bandwidth'>('viewers');
   const [bandwidthSortBy, setBandwidthSortBy] = useState<'bytes' | 'connections' | 'watch_time'>('bytes');
 
+  const finiteNumber = (value: unknown, fallback = 0): number =>
+    typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
@@ -105,8 +108,15 @@ export function EnhancedStatsPanel({ refreshTrigger }: EnhancedStatsPanelProps) 
   // Prepare chart data for daily unique viewers
   const dailyChartData = uniqueViewers?.daily_unique.map(d => ({
     date: new Date(d.date).toLocaleDateString('en-US', { weekday: 'short' }),
-    unique_count: d.unique_count,
+    unique_count: finiteNumber(d.unique_count, 0),
   })) || [];
+
+  const safeChannelBandwidth = channelBandwidth.map(row => ({
+    ...row,
+    total_bytes: finiteNumber((row as unknown as { total_bytes?: unknown }).total_bytes, 0),
+    total_connections: finiteNumber((row as unknown as { total_connections?: unknown }).total_connections, 0),
+    total_watch_seconds: finiteNumber((row as unknown as { total_watch_seconds?: unknown }).total_watch_seconds, 0),
+  }));
 
   return (
     <div className="enhanced-stats-panel">
@@ -244,7 +254,7 @@ export function EnhancedStatsPanel({ refreshTrigger }: EnhancedStatsPanelProps) 
           </div>
 
           {/* Channel Bandwidth Chart */}
-          {channelBandwidth.length > 0 && (
+          {safeChannelBandwidth.length > 0 && (
             <div className="chart-container">
               <div className="chart-title">
                 {bandwidthSortBy === 'bytes' && 'Channel Bandwidth (7 days)'}
@@ -253,7 +263,7 @@ export function EnhancedStatsPanel({ refreshTrigger }: EnhancedStatsPanelProps) 
               </div>
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart
-                  data={channelBandwidth.slice(0, 10)}
+                  data={safeChannelBandwidth.slice(0, 10)}
                   margin={{ top: 10, right: 20, bottom: 60, left: 10 }}
                 >
                   <XAxis
@@ -282,9 +292,9 @@ export function EnhancedStatsPanel({ refreshTrigger }: EnhancedStatsPanelProps) 
                       return (
                         <div className="enhanced-stats-tooltip">
                           <div className="tooltip-label">{data.channel_name}</div>
-                          <div className="tooltip-value">{formatBytes(data.total_bytes)}</div>
-                          <div className="tooltip-detail">{data.total_connections} connections</div>
-                          <div className="tooltip-detail">{formatWatchTime(data.total_watch_seconds)} watch time</div>
+                          <div className="tooltip-value">{formatBytes(finiteNumber(data.total_bytes, 0))}</div>
+                          <div className="tooltip-detail">{finiteNumber(data.total_connections, 0)} connections</div>
+                          <div className="tooltip-detail">{formatWatchTime(finiteNumber(data.total_watch_seconds, 0))} watch time</div>
                         </div>
                       );
                     }}
@@ -314,7 +324,7 @@ export function EnhancedStatsPanel({ refreshTrigger }: EnhancedStatsPanelProps) 
           )}
 
           {/* Channel Bandwidth List */}
-          {channelBandwidth.length > 0 && (
+          {safeChannelBandwidth.length > 0 && (
             <div className="channel-bandwidth-list">
               <div className="list-header">
                 <span className="col-rank">#</span>
@@ -323,7 +333,7 @@ export function EnhancedStatsPanel({ refreshTrigger }: EnhancedStatsPanelProps) 
                 <span className="col-connections">Connections</span>
                 <span className="col-time">Watch Time</span>
               </div>
-              {channelBandwidth.map((channel, index) => (
+              {safeChannelBandwidth.map((channel, index) => (
                 <div key={channel.channel_id} className="bandwidth-item">
                   <span className="col-rank">{index + 1}</span>
                   <span className="col-name">{channel.channel_name}</span>
@@ -335,7 +345,7 @@ export function EnhancedStatsPanel({ refreshTrigger }: EnhancedStatsPanelProps) 
             </div>
           )}
 
-          {channelBandwidth.length === 0 && (
+          {safeChannelBandwidth.length === 0 && (
             <div className="empty-state">No channel bandwidth data available yet.</div>
           )}
         </div>
