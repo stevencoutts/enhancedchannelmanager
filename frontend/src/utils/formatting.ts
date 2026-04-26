@@ -6,7 +6,8 @@
 
 /** Format bytes to human-readable string (e.g. "1.5 GB"). */
 export function formatBytes(bytes: number | undefined): string {
-  if (!bytes) return '0 B';
+  if (bytes === undefined || bytes === null) return '0 B';
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   let value = bytes;
   let unitIndex = 0;

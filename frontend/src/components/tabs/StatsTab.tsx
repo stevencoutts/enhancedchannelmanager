@@ -146,7 +146,9 @@ function prepareBandwidthChartData(dailyHistory: Array<{ date: string; bytes_tra
   // Create a map of existing data by date string
   const dataMap = new Map<string, number>();
   for (const record of dailyHistory) {
-    dataMap.set(record.date, record.bytes_transferred);
+    const rawBytes = (record as unknown as { bytes_transferred?: unknown }).bytes_transferred;
+    const bytes = typeof rawBytes === 'number' && Number.isFinite(rawBytes) && rawBytes > 0 ? rawBytes : 0;
+    dataMap.set(record.date, bytes);
   }
 
   // Get today's date at midnight local time
@@ -1185,7 +1187,10 @@ export function StatsTab() {
               // Use memoized bandwidth chart data
               const chartData = bandwidthChartData;
               // Find max for scaling - ensure we have a reasonable minimum
-              const maxBytes = Math.max(...chartData.map(d => d.bytes), 1024);
+              const maxBytes = Math.max(
+                ...chartData.map(d => (typeof d.bytes === 'number' && Number.isFinite(d.bytes) ? d.bytes : 0)),
+                1024
+              );
 
               // Custom bar shape to handle fill color
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
