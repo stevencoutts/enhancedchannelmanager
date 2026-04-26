@@ -245,9 +245,10 @@ export function StatsTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const isFetchingRef = useRef(false);
 
   // Auto-refresh state
-  const [refreshInterval, setRefreshInterval] = useState(30); // Default 30 seconds (was 5s - too aggressive)
+  const [refreshInterval, setRefreshInterval] = useState(0); // Default manual to avoid runaway loops in prod
   const refreshTimerRef = useRef<number | null>(null);
   const lastRefreshRef = useRef<Date>(new Date());
 
@@ -323,6 +324,11 @@ export function StatsTab() {
 
   // Fetch stats data
   const fetchData = useCallback(async (showLoading = false) => {
+    if (isFetchingRef.current) {
+      logger.debug('Stats Tab: skipping refresh (already in progress)');
+      return;
+    }
+    isFetchingRef.current = true;
     if (showLoading) setLoading(true);
     setRefreshing(true);
     setError(null);
@@ -443,6 +449,7 @@ export function StatsTab() {
     } finally {
       setLoading(false);
       setRefreshing(false);
+      isFetchingRef.current = false;
     }
   }, []);
 
