@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { Component, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { ChannelStatsResponse, SystemEvent, BandwidthSummary, M3UAccount, ChannelWatchStats, TopWatchedSortBy } from '../../types';
 import * as api from '../../services/api';
 import { logger } from '../../utils/logger';
@@ -206,6 +206,33 @@ function DataTooltip({ active, payload }: { active?: boolean; payload?: Array<{ 
     );
   }
   return null;
+}
+
+class PanelErrorBoundary extends Component<
+  { scope: string; children: React.ReactNode },
+  { hasError: boolean }
+> {
+  state: { hasError: boolean } = { hasError: false };
+
+  static getDerivedStateFromError(): { hasError: boolean } {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: unknown) {
+    logger.error(`[StatsTab] Panel crashed: ${this.props.scope}`, error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="stats-error" style={{ marginTop: 12 }}>
+          <span className="material-icons">error</span>
+          <p>{this.props.scope} failed to render. Check console for details.</p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 export function StatsTab() {
@@ -1255,16 +1282,24 @@ export function StatsTab() {
         )}
 
         {/* Bandwidth In/Out Panel (v0.11.0) */}
-        <BandwidthPanel />
+        <PanelErrorBoundary scope="Bandwidth panel">
+          <BandwidthPanel />
+        </PanelErrorBoundary>
 
         {/* Enhanced Statistics (v0.11.0) */}
-        <EnhancedStatsPanel />
+        <PanelErrorBoundary scope="Enhanced statistics panel">
+          <EnhancedStatsPanel />
+        </PanelErrorBoundary>
 
         {/* Popularity Rankings (v0.11.0) */}
-        <PopularityPanel />
+        <PanelErrorBoundary scope="Popularity panel">
+          <PopularityPanel />
+        </PanelErrorBoundary>
 
         {/* Watch History Log (v0.11.0) */}
-        <WatchHistoryPanel />
+        <PanelErrorBoundary scope="Watch history panel">
+          <WatchHistoryPanel />
+        </PanelErrorBoundary>
       </div>
     </div>
   );
